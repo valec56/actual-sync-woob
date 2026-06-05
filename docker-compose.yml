@@ -1,0 +1,11 @@
+services:
+  actual-sync:
+    build: .
+    container_name: actual_sync
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./woob-config:/root/.config/woob:Z
+      - ./woob-cache:/root/.local/share/woob:Z
+      - ./bank-data:/data:Z
