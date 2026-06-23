@@ -8,7 +8,7 @@
     "start": "node sync.js"
   },
   "dependencies": {
-    "@actual-app/api": "^24.0.0"
+    "@actual-app/api": "^26.6.0"
   },
   "author": "valec56",
   "license": "MIT"
