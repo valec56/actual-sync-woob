@@ -1,6 +1,6 @@
 {
   "name": "actual-sync-woob",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Automatic synchronization between bank and Actual Budget using Woob",
   "main": "sync.js",
   "type": "commonjs",
