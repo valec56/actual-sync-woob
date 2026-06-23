@@ -67,7 +67,7 @@ docker exec actual_sync tail -f /var/log/cron.log
 
 ```
 .
-├── Dockerfile          # Python + Woob + Node 20 + cron image
+├── Dockerfile          # Python + Woob + Node 24 + cron image
 ├── entrypoint.sh       # Configures the crontab and picks v1/v2 from SYNC_MODE
 ├── download.sh         # v1 — called by cron in SYNC_MODE=v1, writes the OFX file
 ├── sync.js             # v2 — called by cron in SYNC_MODE=v2, pushes to Actual Budget

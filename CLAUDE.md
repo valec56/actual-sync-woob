@@ -15,7 +15,7 @@ The image ships both paths; `entrypoint.sh` reads `SYNC_MODE` at startup and poi
 - **v1 (default, `SYNC_MODE=v1`)** — pure shell. Cron runs `download.sh`, which calls `woob bank history ... -f ofx` and writes the file to `/data`. No Actual Budget instance required.
 - **v2 (`SYNC_MODE=v2`)** — Node. Cron runs `node sync.js`, which performs the same Woob extraction and then pushes transactions into Actual Budget via `@actual-app/api`. Requires `ACTUAL_SERVER_URL`, `ACTUAL_PASSWORD`, `ACTUAL_BUDGET_ID`, `ACTUAL_ACCOUNT_ID` (and optionally `ACTUAL_ENCRYPTION_PASSWORD`).
 
-The Dockerfile installs both Python/Woob and Node 20 (via NodeSource) so either path works without rebuilding. When asked to "run the sync" or "fix the script", clarify which mode unless context makes it obvious.
+The Dockerfile installs both Python/Woob and Node 24 (via NodeSource) so either path works without rebuilding. When asked to "run the sync" or "fix the script", clarify which mode unless context makes it obvious.
 
 ## Cron + env vars: the non-obvious bit
 
