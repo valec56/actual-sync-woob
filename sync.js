@@ -1,62 +1,70 @@
 const { execSync } = require('child_process');
 const { api } = require('@actual-app/api');
 const fs = require('fs');
-const path = require('path');
 
 // Temporary file paths
 const EXPORT_PATH = '/tmp/export.ofx';
 const ACTUAL_DATA_DIR = '/tmp/actual-data';
 
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) throw new Error(`${name} is required`);
+  return value;
+}
+
 async function run() {
   console.log(`[${new Date().toISOString()}] 🚀 Starting synchronization...`);
 
+  // Validate required env vars upfront so we fail before doing any work
+  const accountId = requireEnv('WOOB_ACCOUNT_ID');
+  const serverURL = requireEnv('ACTUAL_SERVER_URL');
+  const password = requireEnv('ACTUAL_PASSWORD');
+  const budgetId = requireEnv('ACTUAL_BUDGET_ID');
+  const actualAccountId = requireEnv('ACTUAL_ACCOUNT_ID');
+  const historyCount = process.env.WOOB_HISTORY_COUNT || '200';
+  const encryptionPassword = process.env.ACTUAL_ENCRYPTION_PASSWORD;
+
+  let initialized = false;
   try {
-    // 1. Fetch transactions via Woob
-    console.log("📥 Fetching OFX file from the bank via Woob...");
-    const accountId = process.env.WOOB_ACCOUNT_ID;
-    if (!accountId) throw new Error('WOOB_ACCOUNT_ID is required.');
-    const historyCount = process.env.WOOB_HISTORY_COUNT || '200';
+    // 1. Refresh Woob modules (matches the v1 download.sh behaviour)
+    console.log('🔄 Updating Woob modules...');
+    execSync('woob config update', { stdio: 'inherit' });
+
+    // 2. Fetch transactions via Woob
+    console.log('📥 Fetching OFX file from the bank via Woob...');
     execSync(`woob bank history "${accountId}" -f ofx -n ${historyCount} > ${EXPORT_PATH}`, { stdio: 'inherit' });
 
     if (!fs.existsSync(EXPORT_PATH) || fs.statSync(EXPORT_PATH).size === 0) {
-      throw new Error("The OFX file exported by Woob is empty or missing.");
+      // Woob can exit 0 while producing an empty file on auth/2FA failures
+      throw new Error('The OFX file exported by Woob is empty or missing.');
     }
 
-    // 2. Initialize the Actual API
-    console.log("🔗 Connecting to the Actual Budget instance...");
-    await api.init({
-      dataDir: ACTUAL_DATA_DIR,
-      serverURL: process.env.ACTUAL_SERVER_URL,
-      password: process.env.ACTUAL_PASSWORD
-    });
+    // 3. Initialize the Actual API
+    console.log('🔗 Connecting to the Actual Budget instance...');
+    fs.mkdirSync(ACTUAL_DATA_DIR, { recursive: true });
+    await api.init({ dataDir: ACTUAL_DATA_DIR, serverURL, password });
+    initialized = true;
 
-    // 3. Open the budget (handles end-to-end encryption if enabled)
-    console.log("📂 Opening the budget...");
-    await api.downloadBudget(process.env.ACTUAL_BUDGET_ID, {
-      password: process.env.ACTUAL_ENCRYPTION_PASSWORD // Optional: only if the budget is encrypted
-    });
+    // 4. Open the budget (only forward the encryption password if it was set)
+    console.log('📂 Opening the budget...');
+    const downloadOpts = encryptionPassword ? { password: encryptionPassword } : undefined;
+    await api.downloadBudget(budgetId, downloadOpts);
 
-    // 4. Import transactions into the target account
-    console.log("💾 Injecting transactions into Actual Budget...");
+    // 5. Import transactions into the target account
+    console.log('💾 Injecting transactions into Actual Budget...');
     const fileBuffer = fs.readFileSync(EXPORT_PATH);
-    const result = await api.importTransactions(process.env.ACTUAL_ACCOUNT_ID, fileBuffer);
+    const result = await api.importTransactions(actualAccountId, fileBuffer);
 
     console.log(`✅ Sync successful! Added: ${result.added.length}, Updated: ${result.updated.length}`);
-
-  } catch (error) {
-    console.error("❌ Sync failed:", error.message || error);
   } finally {
-    // 5. Clean up temporary files
-    console.log("🧹 Cleaning up temporary files...");
+    console.log('🧹 Cleaning up temporary files...');
     if (fs.existsSync(EXPORT_PATH)) fs.unlinkSync(EXPORT_PATH);
-
-    try {
-      await api.shutdown();
-    } catch (e) {
-      // Ignore if the API was never initialized
-    }
-    console.log("🏁 Done.");
+    if (initialized) await api.shutdown();
+    console.log('🏁 Done.');
   }
 }
 
-run();
+run().catch((error) => {
+  console.error('❌ Sync failed:', error.message || error);
+  process.exit(1);
+});
