@@ -6,6 +6,7 @@ Docker image that automatically fetches bank transactions via [Woob](https://woo
 
 - Docker + Docker Compose
 - Woob configured once locally (see [Woob configuration](#woob-configuration))
+- For `SYNC_MODE=v2` only: a running [Actual Budget](https://actualbudget.org/) server you can reach from the container
 
 ## Quick start
 
@@ -20,7 +21,29 @@ mkdir -p woob-config woob-cache bank-data
 docker compose up -d
 ```
 
-The OFX file will be dropped into `./bank-data/` according to the configured schedule.
+The behaviour depends on `SYNC_MODE` (see below).
+
+### v1 — OFX file (default)
+
+Keep `SYNC_MODE=v1` and set `WOOB_ACCOUNT_ID` (plus optionally `OUTPUT_FILENAME`). The OFX file is dropped into `./bank-data/` according to the configured schedule. No Actual Budget instance is required.
+
+### v2 — push to Actual Budget
+
+Set `SYNC_MODE=v2` and fill in the `ACTUAL_*` variables in addition to `WOOB_ACCOUNT_ID`:
+
+```dotenv
+SYNC_MODE=v2
+WOOB_ACCOUNT_ID=<your-woob-account-id>
+ACTUAL_SERVER_URL=http://actual:5006
+ACTUAL_PASSWORD=<your-actual-password>
+ACTUAL_BUDGET_ID=<sync-id>          # Actual → Settings → Advanced → Sync ID
+ACTUAL_ACCOUNT_ID=<target-account>  # account inside the budget receiving the transactions
+# ACTUAL_ENCRYPTION_PASSWORD=       # only if the budget is end-to-end encrypted
+```
+
+In this mode no OFX file is written to `./bank-data/`: transactions are imported directly into the configured Actual account on each run. The container must be able to reach `ACTUAL_SERVER_URL` — if Actual runs in another Compose stack, attach both to the same Docker network.
+
+Because cron does not inherit the container's environment, **any change to these variables requires a container restart** (`docker compose up -d`), not just waiting for the next scheduled run.
 
 ## Environment variables
 
