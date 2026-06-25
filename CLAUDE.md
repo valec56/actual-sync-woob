@@ -8,14 +8,14 @@ Docker image that periodically pulls bank transactions via [Woob](https://woob.t
 
 **Language convention: all logs, code comments, and documentation are written in English.** Conversations with the user may still happen in French — only the artifacts (files, commits, comments) are English.
 
-## Two versions live in this repo
+## Two sync paths, picked by `SYNC_MODE`
 
-The codebase contains two distinct sync paths. Be careful which one you touch:
+The image ships both paths; `entrypoint.sh` reads `SYNC_MODE` at startup and points cron at the matching command:
 
-- **v1 (shipped, the one the Docker image runs)** — pure shell. `entrypoint.sh` writes a crontab from `CRON_SCHEDULE`, cron then runs `download.sh` which calls `woob bank history ... -f ofx` and writes the file to `/data`. No Node.js involved at runtime.
-- **v2 (WIP, not wired into the container)** — `sync.js` + `package.json`. Same Woob extraction, but pushes transactions directly into Actual Budget via `@actual-app/api`. The Dockerfile does **not** install Node or copy `sync.js`, and the `ACTUAL_*` env vars in `.env.example` are commented out. Treat `sync.js` as a draft until the Dockerfile/entrypoint are updated.
+- **v1 (default, `SYNC_MODE=v1`)** — pure shell. Cron runs `download.sh`, which calls `woob bank history ... -f ofx` and writes the file to `/data`. No Actual Budget instance required.
+- **v2 (`SYNC_MODE=v2`)** — Node. Cron runs `node sync.js`, which performs the same Woob extraction and then pushes transactions into Actual Budget via `@actual-app/api`. Requires `ACTUAL_SERVER_URL`, `ACTUAL_PASSWORD`, `ACTUAL_BUDGET_ID`, `ACTUAL_ACCOUNT_ID` (and optionally `ACTUAL_ENCRYPTION_PASSWORD`).
 
-When asked to "run the sync" or "fix the script", clarify which path unless context makes it obvious.
+The Dockerfile installs both Python/Woob and Node 24 (via NodeSource) so either path works without rebuilding. When asked to "run the sync" or "fix the script", clarify which mode unless context makes it obvious.
 
 ## Cron + env vars: the non-obvious bit
 
@@ -55,8 +55,10 @@ docker exec actual_sync crontab -l
 
 There is no test suite, no linter, and no build step beyond `docker build`.
 
-## When editing `download.sh` or `entrypoint.sh`
+## When editing `download.sh`, `entrypoint.sh`, or `sync.js`
 
 - They're copied into the image via the Dockerfile, so changes require a rebuild (`docker compose up -d --build`), not just a restart.
-- Both use `set -e` semantics implicitly via the `${VAR:?...}` pattern for required vars — preserve that style for new required inputs.
-- The empty-file check at the end of `download.sh` (`[ -s "${OUTPUT_PATH}" ]`) is intentional: Woob can exit 0 while producing an empty file on auth/2FA failures.
+- Both shell scripts use `set -e` semantics implicitly via the `${VAR:?...}` pattern for required vars — preserve that style for new required inputs.
+- `sync.js` mirrors the same contract with a `requireEnv()` helper that throws before any work happens; new required vars should be added there.
+- The empty-file check at the end of `download.sh` (`[ -s "${OUTPUT_PATH}" ]`) is intentional and is also enforced in `sync.js` against `/tmp/export.ofx`: Woob can exit 0 while producing an empty file on auth/2FA failures.
+- `sync.js` exits non-zero on failure (via `run().catch(...)`) so cron logs surface the error — don't swallow exceptions silently.
