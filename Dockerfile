@@ -23,7 +23,8 @@ COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
 COPY download.sh entrypoint.sh sync.js ./
-RUN chmod +x download.sh entrypoint.sh
+COPY scripts/setup.sh ./scripts/
+RUN chmod +x download.sh entrypoint.sh scripts/setup.sh
 
 RUN touch /var/log/cron.log
 

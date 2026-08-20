@@ -1,6 +1,16 @@
 #!/bin/bash
 set -e
 
+# Check if config.json exists (required for multi-account support)
+if [ ! -f /app/config.json ]; then
+  echo "WARNING: config.json not found."
+  echo "Run the interactive setup first:"
+  echo "  ./scripts/setup.sh"
+  echo
+  echo "Or create config.json from config.json.example and edit it."
+  exit 1
+fi
+
 # Export all env vars so cron jobs can access them
 printenv > /etc/environment
 
