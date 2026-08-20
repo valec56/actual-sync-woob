@@ -1,0 +1,24 @@
+{
+  "sync_mode": "v2",
+  "cron_schedule": "0 5 * * *",
+  "actual_server_url": "http://actual:5006",
+  "actual_password": "your-password",
+  "actual_encryption_password": null,
+  "woob_history_count": 200,
+  "accounts": [
+    {
+      "name": "Main Bank Account",
+      "woob_account_id": "account-id-from-woob",
+      "actual_budget_id": "sync-id-from-actual",
+      "actual_account_id": "account-id-from-actual",
+      "enabled": true
+    },
+    {
+      "name": "Secondary Account",
+      "woob_account_id": "another-account-id",
+      "actual_budget_id": "another-sync-id",
+      "actual_account_id": "another-account-id",
+      "enabled": false
+    }
+  ]
+}
