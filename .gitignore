@@ -4,6 +4,9 @@ woob-cache/
 bank-data/
 .DS_Store
 
+# Git worktrees (isolated development branches)
+.worktrees/
+
 # Environment variables
 .env
 .env.local
