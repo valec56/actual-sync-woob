@@ -1,17 +1,27 @@
 #!/bin/bash
 set -e
 
-# Check if config.json exists (required for multi-account support)
-if [ ! -f /app/config.json ]; then
-  echo "WARNING: config.json not found."
-  echo "Run the interactive setup first:"
-  echo "  ./scripts/setup.sh"
-  echo
-  echo "Or create config.json from config.json.example and edit it."
-  exit 1
+# Export all env vars so cron jobs can access them
+printenv > /etc/environment
+
+# Load config.json if present, fall back to env vars
+if [ -f /app/config.json ]; then
+  if ! command -v jq &> /dev/null; then
+    echo "WARNING: jq not found, cannot parse config.json. Using env vars." >&2
+  else
+    export SYNC_MODE=$(jq -r '.sync_mode // "v1"' /app/config.json)
+    export CRON_SCHEDULE=$(jq -r '.cron_schedule // "0 5 * * *"' /app/config.json)
+    echo "[INFO] Loaded config from config.json"
+  fi
+else
+  echo "[INFO] config.json not found, using environment variables"
 fi
 
-# Export all env vars so cron jobs can access them
+# Fall back to env vars if not set
+export SYNC_MODE="${SYNC_MODE:-v1}"
+export CRON_SCHEDULE="${CRON_SCHEDULE:-0 5 * * *}"
+
+# Re-export updated env vars for cron
 printenv > /etc/environment
 
 # Pick the sync command based on SYNC_MODE
