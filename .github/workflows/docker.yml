@@ -6,8 +6,12 @@ on:
       - Dockerfile
       - download.sh
       - entrypoint.sh
+      - sync.js
+      - package.json
       - .github/workflows/docker.yml
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
