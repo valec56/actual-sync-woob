@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "packageRules": [
+    {
+      "matchManagers": ["pip_requirements", "dockerfile"],
+      "matchPackageNames": ["woob"],
+      "automerge": false,
+      "labels": ["dependencies", "woob"]
+    }
+  ]
+}
