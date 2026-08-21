@@ -2,6 +2,31 @@
 
 Docker image that automatically fetches bank transactions via [Woob](https://woob.tech/), either as an OFX file dropped into a local directory (v1) or pushed straight into [Actual Budget](https://actualbudget.org/) via its API (v2). The mode is picked at startup with the `SYNC_MODE` environment variable.
 
+## Configuration
+
+### Option 1: Interactive Setup (Recommended)
+```bash
+./scripts/setup.sh
+```
+
+### Option 2: Manual Configuration
+1. Copy `config.json.example` to `config.json`
+2. Edit with your Woob account IDs and Actual Budget credentials
+3. Run `docker-compose up -d --build`
+
+### Multi-Account Support
+
+`config.json` supports multiple accounts. Each is synced independently:
+
+```json
+{
+  "accounts": [
+    { "name": "Account 1", "woob_account_id": "...", ... },
+    { "name": "Account 2", "woob_account_id": "...", ... }
+  ]
+}
+```
+
 ## Requirements
 
 - Docker + Docker Compose

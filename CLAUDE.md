@@ -8,6 +8,24 @@ Docker image that periodically pulls bank transactions via [Woob](https://woob.t
 
 **Language convention: all logs, code comments, and documentation are written in English.** Conversations with the user may still happen in French — only the artifacts (files, commits, comments) are English.
 
+## Configuration
+
+The project supports two configuration methods:
+
+1. **config.json (recommended)** — declarative, multi-account capable
+   - Run `./scripts/setup.sh` to create interactively
+   - Or copy `config.json.example` and edit manually
+
+2. **Environment variables (legacy)** — single account, fallback
+   - Set via `.env` or docker-compose.yml
+   - SYNC_MODE, WOOB_ACCOUNT_ID, ACTUAL_* variables
+
+Env vars are still supported for backwards compatibility, but config.json takes precedence.
+
+### Syncing accounts
+
+Run `./scripts/setup.sh` before first start to configure Woob and create config.json. The container will load config.json at startup and sync all enabled accounts.
+
 ## Two sync paths, picked by `SYNC_MODE`
 
 The image ships both paths; `entrypoint.sh` reads `SYNC_MODE` at startup and points cron at the matching command:
