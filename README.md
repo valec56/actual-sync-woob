@@ -1,28 +1,92 @@
 # actual-sync-woob
 
-Docker image that automatically fetches bank transactions via [Woob](https://woob.tech/), either as an OFX file dropped into a local directory (v1) or pushed straight into [Actual Budget](https://actualbudget.org/) via its API (v2). The mode is picked at startup with the `SYNC_MODE` environment variable.
-
-## Requirements
-
-- Docker + Docker Compose
-- Woob configured once locally (see [Woob configuration](#woob-configuration))
-- For `SYNC_MODE=v2` only: a running [Actual Budget](https://actualbudget.org/) server you can reach from the container
+Docker image that automatically fetches bank transactions via [Woob](https://woob.tech/), either as an OFX file dropped into a local directory (v1) or pushed straight into [Actual Budget](https://actualbudget.org/) via its API (v2). Multiple accounts are supported.
 
 ## Quick start
 
-```bash
-# 1. Copy and fill in the configuration file
-cp .env.example .env
+### 1. Configure Woob (once, using the container)
 
-# 2. Place the Woob config in the dedicated folder (see next section)
+Woob is included in the image. Run it interactively in a temporary container to generate the credentials, which are then persisted in a local folder and mounted on every subsequent start.
+
+```bash
 mkdir -p woob-config woob-cache bank-data
 
-# 3. Start the container
+# Configure the connector for your bank (interactive)
+docker run --rm -it \
+  -v ./woob-config:/root/.config/woob \
+  -v ./woob-cache:/root/.local/share/woob \
+  ghcr.io/valec56/actual-sync-woob:latest \
+  woob config add bank
+
+# List your accounts to find the IDs you'll need in config.json
+docker run --rm \
+  -v ./woob-config:/root/.config/woob \
+  -v ./woob-cache:/root/.local/share/woob \
+  ghcr.io/valec56/actual-sync-woob:latest \
+  woob bank accounts
+```
+
+### 3. Create a docker-compose.yml
+
+```yaml
+services:
+  actual-sync:
+    image: ghcr.io/valec56/actual-sync-woob:latest
+    container_name: actual_sync
+    restart: unless-stopped
+    volumes:
+      - ./woob-config:/root/.config/woob:Z
+      - ./woob-cache:/root/.local/share/woob:Z
+      - ./bank-data:/data:Z
+      - ./config.json:/app/config.json:ro
+```
+
+### 4. Create config.json
+
+```json
+{
+  "sync_mode": "v2",
+  "cron_schedule": "0 5 * * *",
+  "actual_server_url": "http://actual:5006",
+  "actual_password": "your-password",
+  "woob_history_count": 200,
+  "accounts": [
+    {
+      "name": "Main Account",
+      "woob_account_id": "<id from woob bank accounts>",
+      "actual_budget_id": "<Actual → Settings → Advanced → Sync ID>",
+      "actual_account_id": "<account id in the budget>",
+      "enabled": true
+    }
+  ]
+}
+```
+
+See `config.json.example` for all available fields.
+
+### 5. Start
+
+```bash
 docker compose up -d
 ```
 
-The behaviour depends on `SYNC_MODE` (see below).
+## Multi-account
 
+Add more entries to the `accounts` array. Each is synced independently. Set `"enabled": false` to pause a specific account without removing it.
+
+## Logs and manual trigger
+
+```bash
+# Follow container logs
+docker compose logs -f
+
+# Follow cron logs inside the container
+docker exec actual_sync tail -f /var/log/cron.log
+
+# Trigger a sync manually (bypasses cron)
+docker exec actual_sync node /app/sync.js   # v2
+docker exec actual_sync bash /app/download.sh  # v1
+```
 ## Configuration
 
 ### Option 1: Interactive Setup (Recommended)
@@ -50,76 +114,69 @@ The behaviour depends on `SYNC_MODE` (see below).
 
 ### v1 — OFX file (default)
 
-Keep `SYNC_MODE=v1` and set `WOOB_ACCOUNT_ID` (plus optionally `OUTPUT_FILENAME`). The OFX file is dropped into `./bank-data/` according to the configured schedule. No Actual Budget instance is required.
+## Troubleshooting
 
-### v2 — push to Actual Budget
+### Woob authentication fails
 
-Set `SYNC_MODE=v2` and fill in the `ACTUAL_*` variables in addition to `WOOB_ACCOUNT_ID`:
+Possible causes: the bank interface changed (Woob needs updating) or 2FA is required. Re-run Woob setup using the container, then restart:
 
-```dotenv
-SYNC_MODE=v2
-WOOB_ACCOUNT_ID=<your-woob-account-id>
-ACTUAL_SERVER_URL=http://actual:5006
-ACTUAL_PASSWORD=<your-actual-password>
-ACTUAL_BUDGET_ID=<sync-id>          # Actual → Settings → Advanced → Sync ID
-ACTUAL_ACCOUNT_ID=<target-account>  # account inside the budget receiving the transactions
-# ACTUAL_ENCRYPTION_PASSWORD=       # only if the budget is end-to-end encrypted
+```bash
+docker run --rm -it \
+  -v ./woob-config:/root/.config/woob \
+  -v ./woob-cache:/root/.local/share/woob \
+  ghcr.io/valec56/actual-sync-woob:latest \
+  woob config add bank
+
+docker compose restart
 ```
 
-In this mode no OFX file is written to `./bank-data/`: transactions are imported directly into the configured Actual account on each run. The container must be able to reach `ACTUAL_SERVER_URL` — if Actual runs in another Compose stack, attach both to the same Docker network.
+### Sync runs but produces an empty file
 
-Because cron does not inherit the container's environment, **any change to these variables requires a container restart** (`docker compose up -d`), not just waiting for the next scheduled run.
+Woob can exit 0 while producing an empty OFX file on auth or 2FA failures. Check the cron log for the error detail, then re-authenticate as above.
 
-## Environment variables
+### Container can't reach Actual Budget
+
+If Actual Budget runs in a separate Compose stack, attach both containers to the same Docker network and use the service name as the hostname in `actual_server_url`.
+
+## Environment variables (legacy, single account)
+
+For backwards compatibility, a single account can still be configured via environment variables instead of `config.json`. `config.json` takes precedence when both are present.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `SYNC_MODE` | No | `v1` | Sync path: `v1` (OFX file) or `v2` (push to Actual Budget) |
+| `SYNC_MODE` | No | `v1` | Sync path: `v1` (OFX file) or `v2` (Actual Budget API) |
 | `WOOB_ACCOUNT_ID` | Yes | — | Account identifier as returned by `woob bank accounts` |
 | `WOOB_HISTORY_COUNT` | No | `200` | Number of transactions to fetch |
 | `OUTPUT_FILENAME` | v1 | `bank_export.ofx` | Name of the generated OFX file |
-| `CRON_SCHEDULE` | No | `0 5 * * *` | Cron expression for the trigger (every day at 5am by default) |
-| `ACTUAL_SERVER_URL` | v2 | — | URL of your Actual Budget server (e.g. `http://actual:5006`) |
+| `CRON_SCHEDULE` | No | `0 5 * * *` | Cron expression for the trigger |
+| `ACTUAL_SERVER_URL` | v2 | — | URL of your Actual Budget server |
 | `ACTUAL_PASSWORD` | v2 | — | Password used to log into the Actual server |
-| `ACTUAL_BUDGET_ID` | v2 | — | Sync ID of the budget (Actual → Settings → Advanced → Sync ID) |
-| `ACTUAL_ACCOUNT_ID` | v2 | — | Account ID inside the budget that will receive the transactions |
-| `ACTUAL_ENCRYPTION_PASSWORD` | No | — | End-to-end encryption password (only if the budget is encrypted) |
+| `ACTUAL_BUDGET_ID` | v2 | — | Sync ID (Actual → Settings → Advanced → Sync ID) |
+| `ACTUAL_ACCOUNT_ID` | v2 | — | Account ID inside the budget receiving the transactions |
+| `ACTUAL_ENCRYPTION_PASSWORD` | No | — | E2E encryption password (only if the budget is encrypted) |
 
-## Woob configuration
+> Because cron does not inherit the container's environment, **any change to these variables requires a container restart** (`docker compose up -d`).
 
-Woob must be configured **once** outside the container; the resulting config is then mounted as a volume.
-
-```bash
-# Install Woob locally
-pip install woob
-
-# Configure the connector for your bank
-woob config add bank
-
-# List accounts to find the WOOB_ACCOUNT_ID
-woob bank accounts
-
-# Copy the generated config into the project folder
-cp -r ~/.config/woob/* ./woob-config/
-```
-
-## Logs
+## Contributing
 
 ```bash
-docker compose logs -f
-# or directly inside the container:
-docker exec actual_sync tail -f /var/log/cron.log
+git clone https://github.com/valec56/actual-sync-woob.git
+cd actual-sync-woob
+docker compose up -d --build
 ```
 
 ## Project structure
 
 ```
 .
-├── Dockerfile          # Python + Woob + Node 24 + cron image
-├── entrypoint.sh       # Configures the crontab and picks v1/v2 from SYNC_MODE
-├── download.sh         # v1 — called by cron in SYNC_MODE=v1, writes the OFX file
-├── sync.js             # v2 — called by cron in SYNC_MODE=v2, pushes to Actual Budget
-├── package.json        # v2 Node dependencies (@actual-app/api)
-├── docker-compose.yml  # Orchestration + volumes
-└── .env.example        # Configuration template
+├── Dockerfile              # Python + Woob + Node 24 + cron image
+├── entrypoint.sh           # Generates the crontab, picks v1/v2
+├── download.sh             # v1 — writes the OFX file to /data
+├── sync.js                 # v2 — pushes transactions to Actual Budget
+├── package.json            # Node dependencies (@actual-app/api)
+├── config.json.example     # Configuration template
+├── docker-compose.yml      # Orchestration + volumes
+└── scripts/
+    ├── setup.sh            # Interactive setup wizard
+    └── validate-config.js  # config.json schema validator
 ```

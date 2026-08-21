@@ -8,7 +8,8 @@
     "start": "node sync.js"
   },
   "dependencies": {
-    "@actual-app/api": "^26.6.0"
+    "@actual-app/api": "^26.6.0",
+    "ajv": "^8.12.0"
   },
   "author": "valec56",
   "license": "MIT"

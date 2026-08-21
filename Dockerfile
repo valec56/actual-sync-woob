@@ -10,10 +10,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         gnupg \
         curl \
         ca-certificates \
+        jq \
     && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/* \
-    && pip install --no-cache-dir woob
+    && pip install --no-cache-dir woob==3.7
 
 WORKDIR /app
 RUN mkdir /data
@@ -23,7 +24,8 @@ COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
 COPY download.sh entrypoint.sh sync.js ./
-RUN chmod +x download.sh entrypoint.sh
+COPY scripts/setup.sh ./scripts/
+RUN chmod +x download.sh entrypoint.sh scripts/setup.sh
 
 RUN touch /var/log/cron.log
 
