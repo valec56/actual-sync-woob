@@ -4,25 +4,26 @@ Docker image that automatically fetches bank transactions via [Woob](https://woo
 
 ## Quick start
 
-### 1. Configure Woob (once, on the host)
+### 1. Configure Woob (once, using the container)
 
-Woob credentials are generated locally and mounted into the container — the container itself runs headlessly.
-
-```bash
-pip install woob
-
-# Configure the connector for your bank (interactive)
-woob config add bank
-
-# List your accounts to find the IDs you'll need in config.json
-woob bank accounts
-```
-
-### 2. Create the directory structure
+Woob is included in the image. Run it interactively in a temporary container to generate the credentials, which are then persisted in a local folder and mounted on every subsequent start.
 
 ```bash
 mkdir -p woob-config woob-cache bank-data
-cp -r ~/.config/woob/* ./woob-config/
+
+# Configure the connector for your bank (interactive)
+docker run --rm -it \
+  -v ./woob-config:/root/.config/woob \
+  -v ./woob-cache:/root/.local/share/woob \
+  ghcr.io/valec56/actual-sync-woob:latest \
+  woob config add bank
+
+# List your accounts to find the IDs you'll need in config.json
+docker run --rm \
+  -v ./woob-config:/root/.config/woob \
+  -v ./woob-cache:/root/.local/share/woob \
+  ghcr.io/valec56/actual-sync-woob:latest \
+  woob bank accounts
 ```
 
 ### 3. Create a docker-compose.yml
@@ -91,11 +92,15 @@ docker exec actual_sync bash /app/download.sh  # v1
 
 ### Woob authentication fails
 
-Possible causes: the bank interface changed (Woob needs updating) or 2FA is required. Re-run Woob setup on the host, then copy the updated config:
+Possible causes: the bank interface changed (Woob needs updating) or 2FA is required. Re-run Woob setup using the container, then restart:
 
 ```bash
-woob config add bank
-cp -r ~/.config/woob/* ./woob-config/
+docker run --rm -it \
+  -v ./woob-config:/root/.config/woob \
+  -v ./woob-cache:/root/.local/share/woob \
+  ghcr.io/valec56/actual-sync-woob:latest \
+  woob config add bank
+
 docker compose restart
 ```
 
