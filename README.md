@@ -87,6 +87,32 @@ docker exec actual_sync tail -f /var/log/cron.log
 docker exec actual_sync node /app/sync.js   # v2
 docker exec actual_sync bash /app/download.sh  # v1
 ```
+## Configuration
+
+### Option 1: Interactive Setup (Recommended)
+```bash
+./scripts/setup.sh
+```
+
+### Option 2: Manual Configuration
+1. Copy `config.json.example` to `config.json`
+2. Edit with your Woob account IDs and Actual Budget credentials
+3. Run `docker-compose up -d --build`
+
+### Multi-Account Support
+
+`config.json` supports multiple accounts. Each is synced independently:
+
+```json
+{
+  "accounts": [
+    { "name": "Account 1", "woob_account_id": "...", ... },
+    { "name": "Account 2", "woob_account_id": "...", ... }
+  ]
+}
+```
+
+### v1 — OFX file (default)
 
 ## Troubleshooting
 
