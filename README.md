@@ -12,7 +12,7 @@ Docker image that automatically fetches bank transactions via [Woob](https://woo
 ### Option 2: Manual Configuration
 1. Copy `config.json.example` to `config.json`
 2. Edit with your Woob account IDs and Actual Budget credentials
-3. Run `docker-compose up -d --build`
+3. Run `docker compose up -d --build`
 
 ### Multi-Account Support
 
