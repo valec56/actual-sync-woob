@@ -25,6 +25,13 @@ info() {
   echo -e "${YELLOW}$1${NC}"
 }
 
+# Helper function to escape JSON special characters
+# Escapes backslashes, quotes, newlines, carriage returns, and tabs
+escape_json() {
+  # Use sed to escape: backslashes first, then quotes, then control characters
+  sed 's/\\/\\\\/g; s/"/\\"/g; s/$/\\n/g' | tr -d '\n' | sed 's/\\n$//'
+}
+
 # Step 1: Verify Woob is installed
 echo "========================================="
 echo "actual-sync-woob Setup Wizard"
@@ -81,9 +88,10 @@ read -p "  ACTUAL_ENCRYPTION_PASSWORD (leave empty if not encrypted): " encrypti
 read -p "  Woob history count (number of past days) [200]: " woob_history_count
 woob_history_count="${woob_history_count:-200}"
 
-# Array to collect accounts
-declare -a accounts=()
+# String to collect accounts (POSIX-compatible, no bash arrays)
+accounts_json="["
 account_count=0
+first_account=true
 
 echo
 info "Step 5/5: Add accounts"
@@ -109,24 +117,40 @@ while true; do
     enabled="false"
   fi
 
-  # Create account object
+  # Escape JSON special characters in user input
+  escaped_name=$(printf '%s' "$acc_name" | escape_json)
+  escaped_woob_id=$(printf '%s' "$woob_acc_id" | escape_json)
+  escaped_budget_id=$(printf '%s' "$actual_budget_id" | escape_json)
+  escaped_acc_id=$(printf '%s' "$actual_acc_id" | escape_json)
+
+  # Add comma separator for subsequent accounts
+  if [ "$first_account" = true ]; then
+    first_account=false
+  else
+    accounts_json="${accounts_json},"
+  fi
+
+  # Create account object with escaped values
   account="{
-    \"name\": \"$acc_name\",
-    \"woob_account_id\": \"$woob_acc_id\",
-    \"actual_budget_id\": \"$actual_budget_id\",
-    \"actual_account_id\": \"$actual_acc_id\",
+    \"name\": \"$escaped_name\",
+    \"woob_account_id\": \"$escaped_woob_id\",
+    \"actual_budget_id\": \"$escaped_budget_id\",
+    \"actual_account_id\": \"$escaped_acc_id\",
     \"enabled\": $enabled
   }"
 
-  accounts+=("$account")
+  accounts_json="${accounts_json}${account}"
   echo
   read -p "Add another account? (yes/no) [no]: " another
   [ "$another" != "yes" ] && [ "$another" != "y" ] && break
   echo
 done
 
+# Close accounts array
+accounts_json="${accounts_json}]"
+
 # Validate that at least one account was added
-if [ ${#accounts[@]} -eq 0 ]; then
+if [ "$first_account" = true ]; then
   error "At least one account is required."
   exit 1
 fi
@@ -134,30 +158,27 @@ fi
 # Step 5: Generate config.json
 info "Generating config.json..."
 
-# Build the accounts array for JSON
-accounts_json="["
-for i in "${!accounts[@]}"; do
-  accounts_json="${accounts_json}${accounts[$i]}"
-  if [ $((i + 1)) -lt ${#accounts[@]} ]; then
-    accounts_json="${accounts_json},"
-  fi
-done
-accounts_json="${accounts_json}]"
+# Escape JSON special characters in top-level fields
+escaped_sync_mode=$(printf '%s' "$sync_mode" | escape_json)
+escaped_cron_schedule=$(printf '%s' "$cron_schedule" | escape_json)
+escaped_actual_url=$(printf '%s' "$actual_url" | escape_json)
+escaped_actual_password=$(printf '%s' "$actual_password" | escape_json)
 
 # Determine encryption password (null if empty)
 if [ -z "$encryption_password" ]; then
   encryption_json="null"
 else
-  encryption_json="\"$encryption_password\""
+  escaped_encryption=$(printf '%s' "$encryption_password" | escape_json)
+  encryption_json="\"$escaped_encryption\""
 fi
 
 # Generate the complete config.json
 config_json=$(cat <<EOF
 {
-  "sync_mode": "$sync_mode",
-  "cron_schedule": "$cron_schedule",
-  "actual_server_url": "$actual_url",
-  "actual_password": "$actual_password",
+  "sync_mode": "$escaped_sync_mode",
+  "cron_schedule": "$escaped_cron_schedule",
+  "actual_server_url": "$escaped_actual_url",
+  "actual_password": "$escaped_actual_password",
   "actual_encryption_password": $encryption_json,
   "woob_history_count": $woob_history_count,
   "accounts": $accounts_json
@@ -168,6 +189,9 @@ EOF
 # Write config.json to project root
 config_file="./config.json"
 echo "$config_json" > "$config_file"
+
+# Restrict file permissions to owner only (contains plaintext credentials)
+chmod 600 "$config_file"
 
 success "✓ config.json created successfully"
 echo
