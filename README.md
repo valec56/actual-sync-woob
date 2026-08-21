@@ -23,6 +23,31 @@ docker compose up -d
 
 The behaviour depends on `SYNC_MODE` (see below).
 
+## Configuration
+
+### Option 1: Interactive Setup (Recommended)
+```bash
+./scripts/setup.sh
+```
+
+### Option 2: Manual Configuration
+1. Copy `config.json.example` to `config.json`
+2. Edit with your Woob account IDs and Actual Budget credentials
+3. Run `docker-compose up -d --build`
+
+### Multi-Account Support
+
+`config.json` supports multiple accounts. Each is synced independently:
+
+```json
+{
+  "accounts": [
+    { "name": "Account 1", "woob_account_id": "...", ... },
+    { "name": "Account 2", "woob_account_id": "...", ... }
+  ]
+}
+```
+
 ### v1 — OFX file (default)
 
 Keep `SYNC_MODE=v1` and set `WOOB_ACCOUNT_ID` (plus optionally `OUTPUT_FILENAME`). The OFX file is dropped into `./bank-data/` according to the configured schedule. No Actual Budget instance is required.
