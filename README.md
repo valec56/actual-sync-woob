@@ -13,17 +13,19 @@ mkdir -p woob-config woob-cache bank-data
 
 # Configure the connector for your bank (interactive)
 docker run --rm -it \
+  --entrypoint woob \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  woob config add bank
+  config add bank
 
 # List your accounts to find the IDs you'll need in config.json
 docker run --rm \
+  --entrypoint woob \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  woob bank accounts
+  bank accounts
 ```
 
 ### 3. Create a docker-compose.yml
@@ -96,10 +98,11 @@ Possible causes: the bank interface changed (Woob needs updating) or 2FA is requ
 
 ```bash
 docker run --rm -it \
+  --entrypoint woob \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  woob config add bank
+  config add bank
 
 docker compose restart
 ```
