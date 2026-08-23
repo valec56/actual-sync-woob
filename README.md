@@ -11,13 +11,21 @@ Woob is included in the image. Run it interactively in a temporary container to 
 ```bash
 mkdir -p woob-config woob-cache bank-data
 
-# Configure the connector for your bank (interactive)
+# Find your bank's module name (e.g. cragr, bnporc, lcl, fortuneo…)
+docker run --rm \
+  --entrypoint woob \
+  -v ./woob-config:/root/.config/woob \
+  -v ./woob-cache:/root/.local/share/woob \
+  ghcr.io/valec56/actual-sync-woob:latest \
+  bank list-modules
+
+# Configure the connector for your bank (replace <module> with the name above)
 docker run --rm -it \
   --entrypoint woob \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  config add bank
+  config add <module>
 
 # List your accounts to find the IDs you'll need in config.json
 docker run --rm \
@@ -102,7 +110,7 @@ docker run --rm -it \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  config add bank
+  config add <module>
 
 docker compose restart
 ```
