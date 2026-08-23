@@ -35,7 +35,7 @@ docker run --rm \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  bank accounts
+  bank list
 ```
 
 ### 3. Create a docker-compose.yml
