@@ -11,19 +11,31 @@ Woob is included in the image. Run it interactively in a temporary container to 
 ```bash
 mkdir -p woob-config woob-cache bank-data
 
-# Configure the connector for your bank (interactive)
-docker run --rm -it \
+# Find your bank's module name (e.g. cragr, bnporc, lcl, fortuneo…)
+docker run --rm \
+  --entrypoint woob \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  woob config add bank
+  bank list-modules
+
+# Configure the connector for your bank (replace <module> with the name above)
+# When prompted "How do you want to store it?", always answer s (store) so
+# credentials are saved to woob-config/ and reused on every container start.
+docker run --rm -it \
+  --entrypoint woob \
+  -v ./woob-config:/root/.config/woob \
+  -v ./woob-cache:/root/.local/share/woob \
+  ghcr.io/valec56/actual-sync-woob:latest \
+  config add <module>
 
 # List your accounts to find the IDs you'll need in config.json
 docker run --rm \
+  --entrypoint woob \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  woob bank accounts
+  bank list
 ```
 
 ### 3. Create a docker-compose.yml
@@ -87,32 +99,6 @@ docker exec actual_sync tail -f /var/log/cron.log
 docker exec actual_sync node /app/sync.js   # v2
 docker exec actual_sync bash /app/download.sh  # v1
 ```
-## Configuration
-
-### Option 1: Interactive Setup (Recommended)
-```bash
-./scripts/setup.sh
-```
-
-### Option 2: Manual Configuration
-1. Copy `config.json.example` to `config.json`
-2. Edit with your Woob account IDs and Actual Budget credentials
-3. Run `docker-compose up -d --build`
-
-### Multi-Account Support
-
-`config.json` supports multiple accounts. Each is synced independently:
-
-```json
-{
-  "accounts": [
-    { "name": "Account 1", "woob_account_id": "...", ... },
-    { "name": "Account 2", "woob_account_id": "...", ... }
-  ]
-}
-```
-
-### v1 — OFX file (default)
 
 ## Troubleshooting
 
@@ -122,10 +108,11 @@ Possible causes: the bank interface changed (Woob needs updating) or 2FA is requ
 
 ```bash
 docker run --rm -it \
+  --entrypoint woob \
   -v ./woob-config:/root/.config/woob \
   -v ./woob-cache:/root/.local/share/woob \
   ghcr.io/valec56/actual-sync-woob:latest \
-  woob config add bank
+  config add <module>
 
 docker compose restart
 ```
