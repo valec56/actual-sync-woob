@@ -20,6 +20,8 @@ docker run --rm \
   bank list-modules
 
 # Configure the connector for your bank (replace <module> with the name above)
+# When prompted "How do you want to store it?", always answer s (store) so
+# credentials are saved to woob-config/ and reused on every container start.
 docker run --rm -it \
   --entrypoint woob \
   -v ./woob-config:/root/.config/woob \
