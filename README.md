@@ -1,5 +1,7 @@
 # actual-sync-woob
 
+> ⚠️ **Work in progress — not production-ready.** The project is under active development and may not work as expected. Use at your own risk.
+
 Docker image that automatically fetches bank transactions via [Woob](https://woob.tech/), either as an OFX file dropped into a local directory (v1) or pushed straight into [Actual Budget](https://actualbudget.org/) via its API (v2). Multiple accounts are supported.
 
 ## Quick start
