@@ -2,7 +2,7 @@
 set -e
 
 # Export all env vars so cron jobs can access them
-printenv > /etc/environment
+export -p > /etc/environment
 
 # Load config.json if present, fall back to env vars
 if [ -f /app/config.json ]; then
@@ -22,7 +22,7 @@ export SYNC_MODE="${SYNC_MODE:-v1}"
 export CRON_SCHEDULE="${CRON_SCHEDULE:-0 5 * * *}"
 
 # Re-export updated env vars for cron
-printenv > /etc/environment
+export -p > /etc/environment
 
 # Pick the sync command based on SYNC_MODE
 #   v1 → download.sh writes an OFX file to /data

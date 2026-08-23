@@ -3,9 +3,7 @@ set -e
 
 # Load environment variables (required because cron does not inherit the container's env)
 if [ -f /etc/environment ]; then
-  set -a
   source /etc/environment
-  set +a
 fi
 
 CONFIG_FILE="${CONFIG_FILE:-/app/config.json}"
