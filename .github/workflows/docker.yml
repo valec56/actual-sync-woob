@@ -46,6 +46,7 @@ jobs:
         with:
           images: ghcr.io/valec56/actual-sync-woob
           tags: |
+            type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
