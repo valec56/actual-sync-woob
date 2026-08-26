@@ -100,7 +100,7 @@ async function importIntoActual(
     console.log(`  [Actual] Importing ${transactions.length} transactions...`);
     const result = await actualApi.importTransactions(accountId, transactions);
 
-    console.log(`  [Actual] ✓ Added: ${result.added.length}, Updated: ${result.updated.length}`);
+    console.log(`  [Actual] ✓ Import complete.`);
   } finally {
     if (initialized) {
       await actualApi.shutdown();
