@@ -1,5 +1,5 @@
 const { execSync } = require('child_process');
-const { api } = require('@actual-app/api');
+const actualApi = require('@actual-app/api');
 const fs = require('fs');
 const path = require('path');
 const { validateConfig } = require('./scripts/validate-config');
@@ -55,20 +55,20 @@ async function importIntoActual(
   try {
     console.log(`  [Actual] Connecting to Actual Budget instance...`);
     fs.mkdirSync(TEMP_DIR, { recursive: true });
-    await api.init({ dataDir: TEMP_DIR, serverURL: serverUrl, password });
+    await actualApi.init({ dataDir: TEMP_DIR, serverURL: serverUrl, password });
     initialized = true;
 
     console.log(`  [Actual] Opening budget...`);
     const downloadOpts = encryptionPassword ? { password: encryptionPassword } : undefined;
-    await api.downloadBudget(budgetId, downloadOpts);
+    await actualApi.downloadBudget(budgetId, downloadOpts);
 
     console.log(`  [Actual] Importing transactions...`);
-    const result = await api.importTransactions(accountId, ofxBuffer);
+    const result = await actualApi.importTransactions(accountId, ofxBuffer);
 
     console.log(`  [Actual] ✓ Added: ${result.added.length}, Updated: ${result.updated.length}`);
   } finally {
     if (initialized) {
-      await api.shutdown();
+      await actualApi.shutdown();
     }
     if (fs.existsSync(TEMP_DIR)) {
       fs.rmSync(TEMP_DIR, { recursive: true, force: true });
