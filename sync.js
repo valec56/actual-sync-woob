@@ -4,15 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { validateConfig } = require('./scripts/validate-config');
 
-// Temporary file paths
-const EXPORT_PATH = '/tmp/export.ofx';
 const ACTUAL_DATA_DIR = '/tmp/actual-data';
-
-function requireEnv(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required`);
-  return value;
-}
 
 function loadConfig() {
   const configPath = path.join(__dirname, 'config.json');
@@ -26,6 +18,44 @@ function loadConfig() {
 
 const config = loadConfig();
 
+// Parse an OFX SGML string (Woob format) into an array of Actual Budget
+// transaction objects { date, amount, payee_name, notes, imported_id }.
+// Amounts are in integer cents (100 = $1.00), negative for debits.
+function parseOFX(ofxStr) {
+  const transactions = [];
+  const stmtBlocks = ofxStr.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi) || [];
+
+  for (const block of stmtBlocks) {
+    const get = (tag) => {
+      const m = block.match(new RegExp(`<${tag}>([^<\r\n]+)`, 'i'));
+      return m ? m[1].trim() : null;
+    };
+
+    const dtposted = get('DTPOSTED');
+    const trnamt = get('TRNAMT');
+    const fitid = get('FITID');
+
+    if (!dtposted || !trnamt || !fitid) continue;
+
+    // DTPOSTED: YYYYMMDDHHMMSS or YYYYMMDD → YYYY-MM-DD
+    const date = `${dtposted.slice(0, 4)}-${dtposted.slice(4, 6)}-${dtposted.slice(6, 8)}`;
+
+    // Actual Budget amounts: integers in cents (multiply by 100, round)
+    const amount = Math.round(parseFloat(trnamt) * 100);
+
+    transactions.push({
+      date,
+      amount,
+      payee_name: get('NAME') || '',
+      notes: get('MEMO') || '',
+      imported_id: fitid,
+      cleared: true,
+    });
+  }
+
+  return transactions;
+}
+
 async function fetchWoobTransactions(woobAccountId, historyCount = 200) {
   console.log(`  [Woob] Updating modules...`);
   execSync('woob config update', { stdio: 'inherit' });
@@ -38,7 +68,7 @@ async function fetchWoobTransactions(woobAccountId, historyCount = 200) {
     throw new Error(`Woob returned empty output for account ${woobAccountId}`);
   }
 
-  return Buffer.from(output);
+  return output;
 }
 
 async function importIntoActual(
@@ -47,9 +77,9 @@ async function importIntoActual(
   budgetId,
   accountId,
   encryptionPassword,
-  ofxBuffer
+  ofxStr
 ) {
-  const TEMP_DIR = '/tmp/actual-data-' + Date.now();
+  const TEMP_DIR = '/tmp/actual-data-' + process.pid;
   let initialized = false;
 
   try {
@@ -62,8 +92,13 @@ async function importIntoActual(
     const downloadOpts = encryptionPassword ? { password: encryptionPassword } : undefined;
     await actualApi.downloadBudget(budgetId, downloadOpts);
 
-    console.log(`  [Actual] Importing transactions...`);
-    await actualApi.runImport(accountId, ofxBuffer);
+    const transactions = parseOFX(ofxStr);
+    if (transactions.length === 0) {
+      throw new Error('OFX parser found no transactions in Woob output');
+    }
+
+    console.log(`  [Actual] Importing ${transactions.length} transactions...`);
+    const result = await actualApi.importTransactions(accountId, transactions);
 
     console.log(`  [Actual] ✓ Import complete.`);
   } finally {
@@ -77,31 +112,23 @@ async function importIntoActual(
 }
 
 async function syncAccount(account) {
-  // Fetch Woob transactions for this specific account
-  const ofxBuffer = await fetchWoobTransactions(
+  const ofxStr = await fetchWoobTransactions(
     account.woob_account_id,
     config.woob_history_count || 200
   );
 
-  if (ofxBuffer.length === 0) {
-    throw new Error(
-      `Empty OFX file for account ${account.name} (${account.woob_account_id})`
-    );
-  }
-
-  // Import into Actual Budget for this specific account
   await importIntoActual(
     account.actual_server_url || config.actual_server_url,
     account.actual_password || config.actual_password,
     account.actual_budget_id,
     account.actual_account_id,
     account.actual_encryption_password || config.actual_encryption_password,
-    ofxBuffer
+    ofxStr
   );
 }
 
 async function run() {
-  console.log(`[${new Date().toISOString()}] 🚀 Starting synchronization...`);
+  console.log(`[${new Date().toISOString()}] Starting synchronization...`);
 
   const enabledAccounts = config.accounts.filter(a => a.enabled);
 
@@ -118,15 +145,14 @@ async function run() {
       console.log(`[SYNC] ✓ ${account.name} synced successfully`);
     } catch (err) {
       console.error(`[ERROR] Failed to sync ${account.name}:`, err.message);
-      // Continue with next account — don't stop the whole run
     }
   }
 
   console.log(`[SYNC] All accounts processed`);
-  console.log('🏁 Done.');
+  console.log('Done.');
 }
 
 run().catch((error) => {
-  console.error('❌ Sync failed:', error.message || error);
+  console.error('Sync failed:', error.message || error);
   process.exit(1);
 });
