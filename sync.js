@@ -63,9 +63,9 @@ async function importIntoActual(
     await actualApi.downloadBudget(budgetId, downloadOpts);
 
     console.log(`  [Actual] Importing transactions...`);
-    const result = await actualApi.importTransactions(accountId, ofxBuffer);
+    await actualApi.runImport(accountId, ofxBuffer);
 
-    console.log(`  [Actual] ✓ Added: ${result.added.length}, Updated: ${result.updated.length}`);
+    console.log(`  [Actual] ✓ Import complete.`);
   } finally {
     if (initialized) {
       await actualApi.shutdown();
