@@ -102,6 +102,21 @@ docker exec actual_sync node /app/sync.js   # v2
 docker exec actual_sync bash /app/download.sh  # v1
 ```
 
+## Known limitations
+
+### Duplicate transactions when mixing API sync and manual OFX import
+
+`sync.js` (v2) imports transactions via `importTransactions()`, using the bank's
+`FITID` as `imported_id` for deduplication. Actual Budget's own manual OFX import
+(via its web UI) generates `imported_id` differently, so the two methods don't
+recognize each other's transactions as duplicates — manually importing an OFX
+file into an account already synced by this tool will create duplicates.
+
+**Workaround:** once an account is managed by `actual-sync-woob` (v2), don't
+also import OFX files manually into it. Track: see the corresponding GitHub
+issue for a possible fix (routing through Actual's OFX import endpoint instead
+of `importTransactions()` so both paths share the same `imported_id` scheme).
+
 ## Troubleshooting
 
 ### Woob authentication fails
