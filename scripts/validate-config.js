@@ -38,6 +38,17 @@ const schema = {
       minimum: 1,
       description: 'Number of transactions to fetch from Woob'
     },
+    backup_enabled: {
+      type: 'boolean',
+      default: true,
+      description: 'Whether to export the budget to /data/backups before each v2 import'
+    },
+    backup_retention: {
+      type: 'integer',
+      default: 7,
+      minimum: 1,
+      description: 'Number of backups to keep per budget (oldest are deleted first)'
+    },
     accounts: {
       type: 'array',
       minItems: 1,

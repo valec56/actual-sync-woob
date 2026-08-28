@@ -5,6 +5,8 @@
   "actual_password": "your-password",
   "actual_encryption_password": null,
   "woob_history_count": 200,
+  "backup_enabled": true,
+  "backup_retention": 7,
   "accounts": [
     {
       "name": "Main Bank Account",
