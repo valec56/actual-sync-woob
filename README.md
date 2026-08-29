@@ -84,6 +84,19 @@ See `config.json.example` for all available fields.
 docker compose up -d
 ```
 
+## Backups (v2 only)
+
+Before importing transactions into Actual Budget, `sync.js` exports the whole
+budget to `/data/backups/<budget-id>_<timestamp>.zip` (mounted on the host via
+the `/data` volume, same one used for OFX files in v1). Older backups beyond
+`backup_retention` (default: 7) are deleted automatically.
+
+To restore, use Actual Budget's own **Import file** feature from one of these
+zip files.
+
+Disable with `"backup_enabled": false` in `config.json` if you manage backups
+another way.
+
 ## Multi-account
 
 Add more entries to the `accounts` array. Each is synced independently. Set `"enabled": false` to pause a specific account without removing it.
@@ -101,6 +114,21 @@ docker exec actual_sync tail -f /var/log/cron.log
 docker exec actual_sync node /app/sync.js   # v2
 docker exec actual_sync bash /app/download.sh  # v1
 ```
+
+## Known limitations
+
+### Duplicate transactions when mixing API sync and manual OFX import
+
+`sync.js` (v2) imports transactions via `importTransactions()`, using the bank's
+`FITID` as `imported_id` for deduplication. Actual Budget's own manual OFX import
+(via its web UI) generates `imported_id` differently, so the two methods don't
+recognize each other's transactions as duplicates — manually importing an OFX
+file into an account already synced by this tool will create duplicates.
+
+**Workaround:** once an account is managed by `actual-sync-woob` (v2), don't
+also import OFX files manually into it. Track: see the corresponding GitHub
+issue for a possible fix (routing through Actual's OFX import endpoint instead
+of `importTransactions()` so both paths share the same `imported_id` scheme).
 
 ## Troubleshooting
 

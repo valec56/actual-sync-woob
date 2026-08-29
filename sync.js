@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { validateConfig } = require('./scripts/validate-config');
 
-const ACTUAL_DATA_DIR = '/tmp/actual-data';
+const BACKUP_DIR = '/data/backups';
 
 function loadConfig() {
   const configPath = path.join(__dirname, 'config.json');
@@ -71,14 +71,43 @@ async function fetchWoobTransactions(woobAccountId, historyCount = 200) {
   return output;
 }
 
-async function importIntoActual(
+// Export the currently loaded budget to BACKUP_DIR before importing new
+// transactions, so a bad import can be rolled back manually via the export.
+async function backupBudget(budgetId) {
+  fs.mkdirSync(BACKUP_DIR, { recursive: true });
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const backupPath = path.join(BACKUP_DIR, `${budgetId}_${timestamp}.zip`);
+
+  const data = await actualApi.exportBudget();
+  fs.writeFileSync(backupPath, data);
+
+  console.log(`  [Backup] Saved to ${backupPath}`);
+}
+
+// Keep only the `retention` most recent backups for a given budget.
+function pruneOldBackups(budgetId, retention) {
+  const prefix = `${budgetId}_`;
+  const files = fs
+    .readdirSync(BACKUP_DIR)
+    .filter((f) => f.startsWith(prefix) && f.endsWith('.zip'))
+    .sort();
+
+  const excess = files.length - retention;
+  for (const f of files.slice(0, Math.max(0, excess))) {
+    fs.unlinkSync(path.join(BACKUP_DIR, f));
+  }
+}
+
+async function importIntoActual({
   serverUrl,
   password,
   budgetId,
   accountId,
   encryptionPassword,
-  ofxStr
-) {
+  backupEnabled,
+  backupRetention,
+  ofxStr,
+}) {
   const TEMP_DIR = '/tmp/actual-data-' + process.pid;
   let initialized = false;
 
@@ -91,6 +120,11 @@ async function importIntoActual(
     console.log(`  [Actual] Opening budget...`);
     const downloadOpts = encryptionPassword ? { password: encryptionPassword } : undefined;
     await actualApi.downloadBudget(budgetId, downloadOpts);
+
+    if (backupEnabled) {
+      await backupBudget(budgetId);
+      pruneOldBackups(budgetId, backupRetention);
+    }
 
     const transactions = parseOFX(ofxStr);
     if (transactions.length === 0) {
@@ -117,14 +151,16 @@ async function syncAccount(account) {
     config.woob_history_count || 200
   );
 
-  await importIntoActual(
-    account.actual_server_url || config.actual_server_url,
-    account.actual_password || config.actual_password,
-    account.actual_budget_id,
-    account.actual_account_id,
-    account.actual_encryption_password || config.actual_encryption_password,
-    ofxStr
-  );
+  await importIntoActual({
+    serverUrl: account.actual_server_url || config.actual_server_url,
+    password: account.actual_password || config.actual_password,
+    budgetId: account.actual_budget_id,
+    accountId: account.actual_account_id,
+    encryptionPassword: account.actual_encryption_password || config.actual_encryption_password,
+    backupEnabled: config.backup_enabled !== false,
+    backupRetention: config.backup_retention || 7,
+    ofxStr,
+  });
 }
 
 async function run() {
